@@ -25,9 +25,16 @@ export async function SiteHeader() {
 
         <div className="flex-1" />
 
+        {/* These render as <a>, not <button>, so Base UI needs
+            nativeButton={false} to drop the native button semantics. */}
+
         {signedIn ? (
           <>
-            <Button size="sm" render={<Link href="/report" />}>
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/report" />}
+            >
               <PlusIcon data-icon="inline-start" />
               Report a match
             </Button>
@@ -35,10 +42,19 @@ export async function SiteHeader() {
           </>
         ) : (
           <>
-            <Button variant="ghost" size="sm" render={<Link href="/login" />}>
+            <Button
+              variant="ghost"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/login" />}
+            >
               Sign in
             </Button>
-            <Button size="sm" render={<Link href="/signup" />}>
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/signup" />}
+            >
               Create account
             </Button>
           </>

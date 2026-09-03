@@ -27,6 +27,7 @@ export function GameTypeNav({
             size="sm"
             aria-current={isActive ? "page" : undefined}
             className={cn(!isActive && "text-muted-foreground")}
+            nativeButton={false}
             render={<Link href={`/?game=${gameType.slug}`} />}
           >
             {gameType.name}

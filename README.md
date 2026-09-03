@@ -31,13 +31,38 @@ into the Supabase **SQL Editor** and run it (or `supabase db push` if you use
 the CLI). It creates the tables, the four starting variants, row level
 security, the `@cpacsystems.se` signup trigger, and `report_match()`.
 
-### 4. Turn off email confirmation (recommended)
+### 4. Decide about email confirmation
 
-**Authentication → Sign In / Providers → Email → Confirm email: off.**
+**Simplest — turn it off.** Authentication → Sign In / Providers → Email →
+**Confirm email: off**. Signups are already restricted to company addresses by
+a database trigger, so confirmation mostly adds a step, and new players are
+signed in immediately.
 
-Signups are already restricted to company addresses by a database trigger, so
-confirmation mostly just adds a step. Leave it on and the app will tell people
-to check their inbox — that path works too, but needs SMTP configured.
+**Or leave it on.** Supabase sends the mail itself; the app handles the
+landing. Two things then need setting up on the Supabase side:
+
+1. **Point the email template at this app.** Authentication → Emails →
+   *Confirm signup*, and make the link:
+
+   ```
+   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
+   ```
+
+   That reaches [`app/auth/confirm/route.ts`](app/auth/confirm/route.ts),
+   which trades the one-time token for a session cookie so the new player
+   arrives already signed in. The stock template uses `{{ .ConfirmationURL }}`
+   instead, which confirms the address but drops them at the site signed out.
+
+   Also set **Site URL** under Authentication → URL Configuration to wherever
+   the app runs, and list that origin under **Redirect URLs**.
+
+2. **Configure SMTP.** Authentication → Emails → SMTP Settings. Supabase's
+   built-in sender is rate limited to a handful of messages per hour and is
+   explicitly not intended for production — a team signing up at once will hit
+   that ceiling. Point it at the company mail server or a service like Resend.
+
+An expired or already-used link redirects to `/login` with an explanation
+rather than failing silently.
 
 ### 5. Run it
 
@@ -110,6 +135,7 @@ variant the first time they play it.
 | `proxy.ts` | Session refresh + guards `/report` (Next 16 renamed Middleware to Proxy) |
 | `app/page.tsx` | The leaderboard / wall screen |
 | `app/report/page.tsx` | Report a result |
+| `app/auth/confirm/route.ts` | Where the confirmation email link lands |
 
 ## Commands
 
