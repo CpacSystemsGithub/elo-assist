@@ -17,14 +17,17 @@ export interface ReportMatchState {
   receiptId?: string
 }
 
-const reportSchema = z.object({
-  gameTypeId: z.uuid("Pick a game type."),
-  opponentId: z.uuid("Pick an opponent."),
-  /** Who won — recorded from the reporter's point of view. */
-  didWin: z.enum(["win", "loss"]),
-  yourScore: z.coerce.number().int().min(0).max(99),
-  opponentScore: z.coerce.number().int().min(0).max(99),
-})
+const reportSchema = z
+  .object({
+    gameTypeId: z.uuid("Pick a game type."),
+    opponentId: z.uuid("Pick an opponent."),
+    yourScore: z.coerce.number().int().min(0).max(99),
+    opponentScore: z.coerce.number().int().min(0).max(99),
+  })
+  // The winner is read off the scoreline, so a draw has no result to record.
+  .refine((values) => values.yourScore !== values.opponentScore, {
+    message: "Scores can't be level — someone has to win.",
+  })
 
 export async function reportMatch(
   _prevState: ReportMatchState,
@@ -43,7 +46,6 @@ export async function reportMatch(
   const parsed = reportSchema.safeParse({
     gameTypeId: formData.get("gameTypeId"),
     opponentId: formData.get("opponentId"),
-    didWin: formData.get("didWin"),
     yourScore: formData.get("yourScore"),
     opponentScore: formData.get("opponentScore"),
   })
@@ -52,14 +54,13 @@ export async function reportMatch(
     return { error: parsed.error.issues[0].message }
   }
 
-  const { gameTypeId, opponentId, didWin, yourScore, opponentScore } =
-    parsed.data
+  const { gameTypeId, opponentId, yourScore, opponentScore } = parsed.data
 
   if (opponentId === user.id) {
     return { error: "You can't play yourself." }
   }
 
-  const youWon = didWin === "win"
+  const youWon = yourScore > opponentScore
 
   // report_match() re-checks every one of these server-side; sending winner and
   // loser explicitly just keeps the RPC signature unambiguous.

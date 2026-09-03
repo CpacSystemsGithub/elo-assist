@@ -22,7 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
   previewMatch,
   STARTING_RATING,
@@ -54,7 +53,6 @@ export function ReportMatchForm({
 
   const [gameTypeId, setGameTypeId] = useState(gameTypes[0]?.id ?? "")
   const [opponentId, setOpponentId] = useState("")
-  const [outcome, setOutcome] = useState<"win" | "loss">("win")
 
   // The score inputs are uncontrolled. Keying them on the last recorded match
   // remounts them empty after a successful report, so the next result starts
@@ -112,11 +110,10 @@ export function ReportMatchForm({
 
   return (
     <form action={formAction}>
-      {/* The Selects and the toggle are controlled React state, so their values
-          ride along as hidden inputs rather than native form controls. */}
+      {/* The Selects are controlled React state, so their values ride along as
+          hidden inputs rather than native form controls. */}
       <input type="hidden" name="gameTypeId" value={gameTypeId} />
       <input type="hidden" name="opponentId" value={opponentId} />
-      <input type="hidden" name="didWin" value={outcome} />
 
       <FieldGroup>
         {state.error && (
@@ -213,24 +210,6 @@ export function ReportMatchForm({
           )}
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="outcome">Result</FieldLabel>
-          <ToggleGroup
-            id="outcome"
-            variant="outline"
-            value={[outcome]}
-            onValueChange={(value) => {
-              // Single-select: Base UI hands back an array; ignore deselection
-              // so there is always an outcome chosen.
-              const next = (value as string[])[0]
-              if (next === "win" || next === "loss") setOutcome(next)
-            }}
-          >
-            <ToggleGroupItem value="win">I won</ToggleGroupItem>
-            <ToggleGroupItem value="loss">I lost</ToggleGroupItem>
-          </ToggleGroup>
-        </Field>
-
         <div className="grid grid-cols-2 gap-4">
           <Field>
             <FieldLabel htmlFor="yourScore">
@@ -267,7 +246,9 @@ export function ReportMatchForm({
           </Field>
         </div>
 
-        <FieldDescription>{scoreHint}</FieldDescription>
+        <FieldDescription>
+          {scoreHint} The higher score takes the win.
+        </FieldDescription>
 
         {preview && (
           <StakesPreview preview={preview} opponentName={opponentName} />
