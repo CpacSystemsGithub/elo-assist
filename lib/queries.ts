@@ -3,12 +3,26 @@ import "server-only"
 import { createClient } from "@/lib/supabase/server"
 import type {
   GameType,
+  Sport,
   LeaderboardRow,
   MatchWithNames,
   Profile,
   RatingState,
 } from "@/lib/types"
 
+export async function getSports(): Promise<Sport[]> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from("sports")
+    .select("*")
+    .eq("is_active", true)
+    .order("sort_order")
+
+  if (error) throw new Error(`Could not load sports: ${error.message}`)
+  return (data ?? []) as Sport[]
+}
+
+/** Every active variant across all sports. Callers filter by `sport_id`. */
 export async function getGameTypes(): Promise<GameType[]> {
   const supabase = await createClient()
   const { data, error } = await supabase

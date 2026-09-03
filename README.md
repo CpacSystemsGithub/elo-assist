@@ -6,8 +6,11 @@ on a wall screen.
 - **Sign up** requires a `@cpacsystems.se` address.
 - **Report a result** against a colleague; ratings update immediately.
 - **Elo** — what you gain depends on who you beat, not just that you won.
-- **Variants** — single game to 11, best of 3, best of 5, single game to 21.
-  Each is rated separately.
+- **Two sports** — table tennis and foosball, switched by tabs, each with the
+  same layout.
+- **Variants per sport** — table tennis has single game to 11, best of 3, best
+  of 5 and single game to 21; foosball has single game to 10, best of 3 and
+  best of 5. Every variant is rated separately.
 
 ## Setup
 
@@ -26,10 +29,20 @@ cp .env.local.example .env.local
 
 ### 3. Install the schema
 
-Paste [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
-into the Supabase **SQL Editor** and run it (or `supabase db push` if you use
-the CLI). It creates the tables, the four starting variants, row level
-security, the `@cpacsystems.se` signup trigger, and `report_match()`.
+Run the files in [`supabase/migrations/`](supabase/migrations/) **in order** in
+the Supabase **SQL Editor** (or `supabase db push` if you use the CLI):
+
+1. `0001_init.sql` — tables, row level security, the `@cpacsystems.se` signup
+   trigger, and `report_match()`.
+2. `0002_sports.sql` — adds sports (table tennis + foosball) and the
+   per-variant winning margin.
+
+Both are safe to re-run, and `0002` preserves any players, ratings and match
+history already recorded under `0001`.
+
+> If a call later fails with **"Could not find the table/function … in the
+> schema cache"**, PostgREST is serving a stale schema. Run
+> `notify pgrst, 'reload schema';` — each migration already ends with it.
 
 ### 4. Decide about email confirmation
 
@@ -42,7 +55,7 @@ signed in immediately.
 landing. Two things then need setting up on the Supabase side:
 
 1. **Point the email template at this app.** Authentication → Emails →
-   *Confirm signup*, and make the link:
+   _Confirm signup_, and make the link:
 
    ```
    {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
@@ -71,8 +84,9 @@ npm run dev
 ```
 
 The leaderboard is at `/`, public and signed-out — point the wall screen at
-`http://<host>:3000/?game=best-of-3` and leave it. It refreshes every 30
-seconds on its own.
+`http://<host>:3000/?sport=table-tennis&game=best-of-3` and leave it. Sport and
+variant both live in the URL, so the screen stays where you put it across
+refreshes. It refreshes every 30 seconds on its own.
 
 ## How the rating works
 
@@ -91,7 +105,7 @@ win and 0 for a loss. Consequences:
 - **K** is per variant (`game_types.k_factor`, 32 by default, 24 for best of 5
   since those results are less noisy). It is multiplied by 1.5 for a player's
   first 10 matches in a variant, so new colleagues reach their real level
-  quickly. They are shown as *Provisional* until then.
+  quickly. They are shown as _Provisional_ until then.
 - Ratings are integers, so rounding means a match is occasionally off from
   exactly zero sum by a point.
 
@@ -109,33 +123,52 @@ It also verifies that the reporter actually played in the match.
 [`lib/elo.ts`](lib/elo.ts) repeats the same formula in TypeScript purely to
 render the preview. Retune one and you must retune the other.
 
-## Adding a variant
+## Adding a variant or a sport
 
-Insert a row in `game_types` — no code change needed:
+Both are data, not code. A new table-tennis variant:
 
 ```sql
-insert into public.game_types (slug, name, description, sets_to_win, points_to_win, k_factor, sort_order)
-values ('best-of-7', 'Best of 7', 'First to win 4 games of 11 points.', 4, 11, 20, 50);
+insert into public.game_types
+  (sport_id, slug, name, description, sets_to_win, points_to_win, win_by, k_factor, sort_order)
+select id, 'best-of-7', 'Best of 7', 'First to win 4 games of 11 points.', 4, 11, 2, 20, 50
+from public.sports where slug = 'table-tennis';
 ```
 
-`sets_to_win = 1` means scores are entered as **points** (and must clear
-`points_to_win` by two). Above 1 they are entered as **sets won**, and the
-winner must have exactly `sets_to_win`. Existing players get a rating in a new
-variant the first time they play it.
+A whole new sport — insert into `sports`, then its variants, and it appears as
+another tab with the identical layout:
+
+```sql
+insert into public.sports (slug, name, description, sort_order)
+values ('darts', 'Darts', 'The dartboard by the kitchen.', 30);
+```
+
+Column meanings:
+
+- `sets_to_win = 1` — scores are entered as **points**, and the winner must
+  reach `points_to_win` with a margin of `win_by`.
+- `sets_to_win > 1` — scores are entered as **sets won**, and the winner must
+  have exactly `sets_to_win`.
+- `win_by` — 2 for table tennis, 1 for foosball. Without this a legitimate
+  10–9 foosball result would be rejected.
+
+Existing players get a rating in a new variant the first time they play it; run
+the backfill at the end of `0002_sports.sql` if you want them on the board at
+1000 straight away.
 
 ## Layout
 
-| Path | What it holds |
-| --- | --- |
-| `supabase/migrations/0001_init.sql` | Schema, RLS, grants, triggers, `report_match()` |
-| `lib/elo.ts` | Elo formula (preview only) |
-| `lib/queries.ts` | Server-side reads |
-| `lib/actions/` | Server Actions: sign up, sign in, report a match |
-| `lib/supabase/` | Browser, server and proxy clients |
-| `proxy.ts` | Session refresh + guards `/report` (Next 16 renamed Middleware to Proxy) |
-| `app/page.tsx` | The leaderboard / wall screen |
-| `app/report/page.tsx` | Report a result |
-| `app/auth/confirm/route.ts` | Where the confirmation email link lands |
+| Path                        | What it holds                                                            |
+| --------------------------- | ------------------------------------------------------------------------ |
+| `supabase/migrations/`      | Schema, RLS, grants, triggers, `report_match()`                          |
+| `lib/elo.ts`                | Elo formula (preview only)                                               |
+| `lib/queries.ts`            | Server-side reads                                                        |
+| `lib/actions/`              | Server Actions: sign up, sign in, report a match                         |
+| `lib/supabase/`             | Browser, server and proxy clients                                        |
+| `proxy.ts`                  | Session refresh + guards `/report` (Next 16 renamed Middleware to Proxy) |
+| `app/page.tsx`              | The leaderboard / wall screen                                            |
+| `components/sport-nav.tsx`  | Table tennis / foosball tabs                                             |
+| `app/report/page.tsx`       | Report a result                                                          |
+| `app/auth/confirm/route.ts` | Where the confirmation email link lands                                  |
 
 ## Commands
 

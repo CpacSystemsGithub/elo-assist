@@ -1,12 +1,24 @@
 /** Shapes returned by the Supabase queries in lib/queries.ts. */
 
+export interface Sport {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  is_active: boolean
+  sort_order: number
+}
+
 export interface GameType {
   id: string
+  sport_id: string
   slug: string
   name: string
   description: string | null
   sets_to_win: number
   points_to_win: number
+  /** Winning margin: 2 for table tennis, 1 for foosball. */
+  win_by: number
   k_factor: number
   is_active: boolean
   sort_order: number
@@ -20,6 +32,8 @@ export interface Profile {
 export interface LeaderboardRow {
   game_type_id: string
   game_type_slug: string
+  sport_slug: string
+  sport_name: string
   player_id: string
   display_name: string
   rating: number

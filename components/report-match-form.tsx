@@ -17,6 +17,7 @@ import {
   SelectContent,
   SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -29,16 +30,18 @@ import {
 } from "@/lib/elo"
 import { signed } from "@/lib/format"
 import { reportMatch, type ReportMatchState } from "@/lib/actions/match"
-import type { GameType, Profile, RatingState } from "@/lib/types"
+import type { GameType, Profile, RatingState, Sport } from "@/lib/types"
 
 type RatingRow = RatingState & { game_type_id: string }
 
 export function ReportMatchForm({
+  sports,
   gameTypes,
   opponents,
   ratings,
   currentUserId,
 }: {
+  sports: Sport[]
   gameTypes: GameType[]
   opponents: Profile[]
   ratings: RatingRow[]
@@ -57,6 +60,11 @@ export function ReportMatchForm({
   // remounts them empty after a successful report, so the next result starts
   // from a clean scoreline while the opponent and variant stay selected.
   const scoreKey = state.receiptId ?? "new"
+
+  const sportsById = useMemo(
+    () => new Map(sports.map((sport) => [sport.id, sport])),
+    [sports]
+  )
 
   const gameType = gameTypes.find((type) => type.id === gameTypeId)
   const isSeries = (gameType?.sets_to_win ?? 1) > 1
@@ -94,7 +102,13 @@ export function ReportMatchForm({
   const scoreLabel = isSeries ? "Sets" : "Points"
   const scoreHint = isSeries
     ? `First to ${gameType?.sets_to_win} sets — enter sets won, e.g. ${gameType?.sets_to_win}–1.`
-    : `Game to ${gameType?.points_to_win}, win by two — enter points, e.g. ${gameType?.points_to_win}–7.`
+    : // Table tennis is win-by-two, foosball win-by-one, so take it from the
+      // variant rather than assuming.
+      `Game to ${gameType?.points_to_win}${
+        gameType?.win_by === 2 ? ", win by two" : ""
+      } — enter points, e.g. ${gameType?.points_to_win}–${
+        (gameType?.points_to_win ?? 11) - 4
+      }.`
 
   return (
     <form action={formAction}>
@@ -125,20 +139,39 @@ export function ReportMatchForm({
             value={gameTypeId}
             onValueChange={(value) => setGameTypeId(value as string)}
             items={Object.fromEntries(
-              gameTypes.map((type) => [type.id, type.name])
+              gameTypes.map((type) => [
+                type.id,
+                `${sportsById.get(type.sport_id)?.name ?? ""} · ${type.name}`,
+              ])
             )}
           >
             <SelectTrigger id="game-type-trigger" className="w-full">
-              <SelectValue placeholder="Pick a variant" />
+              <SelectValue placeholder="Pick a game" />
             </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                {gameTypes.map((type) => (
-                  <SelectItem key={type.id} value={type.id}>
-                    {type.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
+            {/* alignItemWithTrigger (Base UI's default) anchors the popup to
+                the selected item and lets it grow to the viewport height, so
+                it ends up covering the rest of the form. Anchoring below the
+                trigger with a capped height keeps the buttons underneath
+                clickable. */}
+            <SelectContent
+              alignItemWithTrigger={false}
+              align="start"
+              className="max-h-64"
+            >
+              {/* One group per sport, so table tennis and foosball variants
+                  that share a name stay tellable apart. */}
+              {sports.map((sport) => (
+                <SelectGroup key={sport.id}>
+                  <SelectLabel>{sport.name}</SelectLabel>
+                  {gameTypes
+                    .filter((type) => type.sport_id === sport.id)
+                    .map((type) => (
+                      <SelectItem key={type.id} value={type.id}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
+                </SelectGroup>
+              ))}
             </SelectContent>
           </Select>
           <FieldDescription>
@@ -158,7 +191,12 @@ export function ReportMatchForm({
             <SelectTrigger id="opponent-trigger" className="w-full">
               <SelectValue placeholder="Who did you play?" />
             </SelectTrigger>
-            <SelectContent>
+            {/* Same reason as above — this list is as long as the company. */}
+            <SelectContent
+              alignItemWithTrigger={false}
+              align="start"
+              className="max-h-64"
+            >
               <SelectGroup>
                 {opponents.map((player) => (
                   <SelectItem key={player.id} value={player.id}>

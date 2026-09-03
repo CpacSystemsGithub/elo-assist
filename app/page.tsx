@@ -7,13 +7,19 @@ import {
 } from "@/components/ui/card"
 import { AutoRefresh } from "@/components/auto-refresh"
 import { GameTypeNav } from "@/components/game-type-nav"
+import { SportNav } from "@/components/sport-nav"
 import {
   LeaderboardTable,
   type FormGuide,
 } from "@/components/leaderboard-table"
 import { RecentMatches } from "@/components/recent-matches"
 import { SetupNotice } from "@/components/setup-notice"
-import { getGameTypes, getLeaderboard, getRecentMatches } from "@/lib/queries"
+import {
+  getGameTypes,
+  getLeaderboard,
+  getRecentMatches,
+  getSports,
+} from "@/lib/queries"
 import { getCurrentUser } from "@/lib/supabase/server"
 import type { MatchWithNames } from "@/lib/types"
 
@@ -41,13 +47,13 @@ function buildFormGuide(matches: MatchWithNames[]): FormGuide {
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game?: string }>
+  searchParams: Promise<{ sport?: string; game?: string }>
 }) {
-  const { game } = await searchParams
+  const { sport, game } = await searchParams
 
-  let gameTypes
+  let sports, allGameTypes
   try {
-    gameTypes = await getGameTypes()
+    ;[sports, allGameTypes] = await Promise.all([getSports(), getGameTypes()])
   } catch (error) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -56,16 +62,29 @@ export default async function LeaderboardPage({
     )
   }
 
-  if (gameTypes.length === 0) {
+  if (sports.length === 0 || allGameTypes.length === 0) {
     return (
       <main className="mx-auto w-full max-w-3xl px-4 py-10">
-        <SetupNotice detail="No game types found — the seed data in 0001_init.sql has not been applied." />
+        <SetupNotice detail="No sports or game types found — run the migrations in supabase/migrations/." />
       </main>
     )
   }
 
-  const activeGameType =
-    gameTypes.find((type) => type.slug === game) ?? gameTypes[0]
+  const activeSport = sports.find((s) => s.slug === sport) ?? sports[0]
+
+  // Variant slugs are only unique within a sport, so scope before matching.
+  const gameTypes = allGameTypes.filter((t) => t.sport_id === activeSport.id)
+  const activeGameType = gameTypes.find((t) => t.slug === game) ?? gameTypes[0]
+
+  if (!activeGameType) {
+    return (
+      <main className="mx-auto w-full max-w-3xl px-4 py-10">
+        <SetupNotice
+          detail={`${activeSport.name} has no active variants. Add one to game_types.`}
+        />
+      </main>
+    )
+  }
 
   const [rows, matches, user] = await Promise.all([
     getLeaderboard(activeGameType.id),
@@ -77,23 +96,33 @@ export default async function LeaderboardPage({
     <main className="mx-auto w-full max-w-7xl px-4 py-6">
       <AutoRefresh seconds={30} />
 
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
+      <div className="mb-5 flex flex-col gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-semibold tracking-tight">Leaderboard</h1>
+          <SportNav sports={sports} activeSlug={activeSport.slug} />
+        </div>
+
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <p className="text-sm text-muted-foreground">
             {activeGameType.description}
           </p>
+          <GameTypeNav
+            gameTypes={gameTypes}
+            activeSlug={activeGameType.slug}
+            sportSlug={activeSport.slug}
+          />
         </div>
-        <GameTypeNav gameTypes={gameTypes} activeSlug={activeGameType.slug} />
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>{activeGameType.name}</CardTitle>
+            <CardTitle>
+              {activeSport.name} · {activeGameType.name}
+            </CardTitle>
             <CardDescription>
-              Every variant is rated separately. Ratings start at 1000 and move
-              by how surprising each result was.
+              Every variant of every sport is rated separately. Ratings start at
+              1000 and move by how surprising each result was.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -108,7 +137,9 @@ export default async function LeaderboardPage({
         <Card>
           <CardHeader>
             <CardTitle>Recent results</CardTitle>
-            <CardDescription>{activeGameType.name}</CardDescription>
+            <CardDescription>
+              {activeSport.name} · {activeGameType.name}
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <RecentMatches matches={matches.slice(0, 15)} />

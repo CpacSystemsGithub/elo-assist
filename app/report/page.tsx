@@ -14,6 +14,7 @@ import {
   getGameTypes,
   getOpponents,
   getProfile,
+  getSports,
 } from "@/lib/queries"
 import { getCurrentUser } from "@/lib/supabase/server"
 
@@ -26,9 +27,10 @@ export default async function ReportPage() {
   // proxy.ts already guards this route; this is the belt to its braces.
   if (!user) redirect("/login?next=%2Freport")
 
-  let gameTypes, opponents, ratings, profile
+  let sports, gameTypes, opponents, ratings, profile
   try {
-    ;[gameTypes, opponents, ratings, profile] = await Promise.all([
+    ;[sports, gameTypes, opponents, ratings, profile] = await Promise.all([
+      getSports(),
       getGameTypes(),
       getOpponents(user.id),
       getAllRatings(),
@@ -55,6 +57,7 @@ export default async function ReportPage() {
         </CardHeader>
         <CardContent>
           <ReportMatchForm
+            sports={sports}
             gameTypes={gameTypes}
             opponents={opponents}
             ratings={ratings}
