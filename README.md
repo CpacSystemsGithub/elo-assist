@@ -11,6 +11,9 @@ on a wall screen.
 - **Variants per sport** — table tennis has single game to 11, best of 3, best
   of 5 and single game to 21; foosball has single game to 10, best of 3 and
   best of 5. Every variant is rated separately.
+- **Teams notifications** — every result, hot-streak milestones, and a Monday
+  morning round-up of the biggest climber, biggest blunder and king of the hill
+  for each sport.
 
 ## Setup
 
@@ -36,9 +39,12 @@ the Supabase **SQL Editor** (or `supabase db push` if you use the CLI):
    trigger, and `report_match()`.
 2. `0002_sports.sql` — adds sports (table tennis + foosball) and the
    per-variant winning margin.
+3. `0003_notifications.sql` — streak and digest figures, and the Monday cron
+   job. **Edit the two placeholders at the bottom first** (see
+   [Teams notifications](#teams-notifications)).
 
-Both are safe to re-run, and `0002` preserves any players, ratings and match
-history already recorded under `0001`.
+All three are safe to re-run, and each preserves the players, ratings and match
+history recorded by the ones before it.
 
 > If a call later fails with **"Could not find the table/function … in the
 > schema cache"**, PostgREST is serving a stale schema. Run
@@ -87,6 +93,57 @@ The leaderboard is at `/`, public and signed-out — point the wall screen at
 `http://<host>:3000/?sport=table-tennis&game=best-of-3` and leave it. Sport and
 variant both live in the URL, so the screen stays where you put it across
 refreshes. It refreshes every 30 seconds on its own.
+
+## Teams notifications
+
+Optional. Leave `TEAMS_WEBHOOK_URL` unset and the ladder simply posts nothing.
+
+### What gets posted
+
+| When                             | Message                                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every reported result            | Who beat whom, the score, both new ratings and the swing. Flagged `upset!` when the lower-rated player won.                                                                |
+| A win streak reaches a milestone | At **3**, **5**, **15**, then every further 15 (30, 45, 60…). Streaks count across a sport's variants but not between sports.                                              |
+| Monday morning                   | Per sport: **king of the hill**, **biggest climber** (largest net rating gain over the week) and **biggest blunder** (worst single-match rating drop, with the scoreline). |
+
+### Setting it up
+
+1. **Create the webhook.** In the Teams channel: **⋯ → Workflows → "Post to a
+   channel when a webhook request is received"**. Copy the generated URL into
+   `TEAMS_WEBHOOK_URL` in `.env.local`.
+
+   This is the Workflows/Power Automate trigger, not the retired Office 365
+   connector. The app sends an Adaptive Card in the envelope Workflows expects.
+
+2. **Set a cron secret.** `openssl rand -hex 32`, into `CRON_SECRET` in
+   `.env.local`. It guards `/api/notifications/weekly`, which posts to a
+   company channel. The route refuses to run at all if the secret is unset.
+
+3. **Schedule the digest.** In `0003_notifications.sql`, replace
+   `REPLACE-WITH-YOUR-APP-URL` with the app's URL as reachable _from Supabase_
+   (a public URL — a `localhost` address will not work) and
+   `REPLACE-WITH-YOUR-CRON-SECRET` with the same secret, then run the file.
+
+   The schedule is `0 7 * * 1` — **UTC**, so 08:00 Swedish winter time and
+   09:00 in summer. Change it if you want it pinned to local time.
+
+To test the wiring without waiting for Monday:
+
+```bash
+curl -X POST -H "x-cron-secret: $CRON_SECRET" \
+  "https://your-app/api/notifications/weekly?force=1"
+```
+
+`?force=1` bypasses the once-per-week guard.
+
+### Why nothing gets posted twice
+
+Every announcement is claimed in `notification_log` before it is sent — keyed
+on the match id for results and streaks, and on the ISO week for the digest. A
+cron retry, a double submit or an overlapping run posts nothing new. Result
+announcements are sent via `after()`, so a slow or unreachable webhook never
+delays the person reporting a score, and a Teams outage can never make a
+recorded result look like it failed.
 
 ## How the rating works
 
@@ -157,18 +214,20 @@ the backfill at the end of `0002_sports.sql` if you want them on the board at
 
 ## Layout
 
-| Path                        | What it holds                                                            |
-| --------------------------- | ------------------------------------------------------------------------ |
-| `supabase/migrations/`      | Schema, RLS, grants, triggers, `report_match()`                          |
-| `lib/elo.ts`                | Elo formula (preview only)                                               |
-| `lib/queries.ts`            | Server-side reads                                                        |
-| `lib/actions/`              | Server Actions: sign up, sign in, report a match                         |
-| `lib/supabase/`             | Browser, server and proxy clients                                        |
-| `proxy.ts`                  | Session refresh + guards `/report` (Next 16 renamed Middleware to Proxy) |
-| `app/page.tsx`              | The leaderboard / wall screen                                            |
-| `components/sport-nav.tsx`  | Table tennis / foosball tabs                                             |
-| `app/report/page.tsx`       | Report a result                                                          |
-| `app/auth/confirm/route.ts` | Where the confirmation email link lands                                  |
+| Path                                    | What it holds                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------ |
+| `supabase/migrations/`                  | Schema, RLS, grants, triggers, `report_match()`                          |
+| `lib/elo.ts`                            | Elo formula (preview only)                                               |
+| `lib/queries.ts`                        | Server-side reads                                                        |
+| `lib/actions/`                          | Server Actions: sign up, sign in, report a match                         |
+| `lib/supabase/`                         | Browser, server and proxy clients                                        |
+| `proxy.ts`                              | Session refresh + guards `/report` (Next 16 renamed Middleware to Proxy) |
+| `app/page.tsx`                          | The leaderboard / wall screen                                            |
+| `components/sport-nav.tsx`              | Table tennis / foosball tabs                                             |
+| `app/report/page.tsx`                   | Report a result                                                          |
+| `app/auth/confirm/route.ts`             | Where the confirmation email link lands                                  |
+| `lib/notifications/`                    | Teams client, Adaptive Cards, streak milestones                          |
+| `app/api/notifications/weekly/route.ts` | The Monday digest, called by pg_cron                                     |
 
 ## Commands
 

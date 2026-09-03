@@ -1,9 +1,13 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { after } from "next/server"
 import { z } from "zod"
 
+import type { Match } from "@/lib/types"
+
 import { createClient } from "@/lib/supabase/server"
+import { announceMatch } from "@/lib/notifications/announce"
 
 export interface ReportMatchState {
   error?: string
@@ -70,6 +74,11 @@ export async function reportMatch(
   if (error) {
     return { error: error.message }
   }
+
+  // Announce after the response is sent, so a slow or unreachable Teams
+  // webhook never delays the person reporting the result.
+  const recorded = data as Match | null
+  if (recorded) after(() => announceMatch(recorded))
 
   revalidatePath("/")
   revalidatePath("/report")
