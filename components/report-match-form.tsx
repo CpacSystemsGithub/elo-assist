@@ -6,6 +6,14 @@ import { TrophyIcon } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox"
+import {
   Field,
   FieldDescription,
   FieldGroup,
@@ -32,6 +40,9 @@ import { reportMatch, type ReportMatchState } from "@/lib/actions/match"
 import type { GameType, Profile, RatingState, Sport } from "@/lib/types"
 
 type RatingRow = RatingState & { game_type_id: string }
+
+/** The `{ value, label }` shape Combobox reads for filtering and display. */
+type OpponentItem = { value: string; label: string }
 
 export function ReportMatchForm({
   sports,
@@ -63,6 +74,18 @@ export function ReportMatchForm({
     () => new Map(sports.map((sport) => [sport.id, sport])),
     [sports]
   )
+
+  const opponentItems = useMemo<OpponentItem[]>(
+    () =>
+      opponents.map((player) => ({
+        value: player.id,
+        label: player.display_name,
+      })),
+    [opponents]
+  )
+
+  const selectedOpponent =
+    opponentItems.find((item) => item.value === opponentId) ?? null
 
   const gameType = gameTypes.find((type) => type.id === gameTypeId)
   const isSeries = (gameType?.sets_to_win ?? 1) > 1
@@ -177,32 +200,31 @@ export function ReportMatchForm({
         </Field>
 
         <Field>
-          <FieldLabel htmlFor="opponent-trigger">Opponent</FieldLabel>
-          <Select
-            value={opponentId}
-            onValueChange={(value) => setOpponentId(value as string)}
-            items={Object.fromEntries(
-              opponents.map((player) => [player.id, player.display_name])
-            )}
+          <FieldLabel htmlFor="opponent">Opponent</FieldLabel>
+          <Combobox
+            items={opponentItems}
+            value={selectedOpponent}
+            onValueChange={(item) => setOpponentId(item?.value ?? "")}
+            // Highlights the top match as you type, so Enter picks it.
+            autoHighlight
           >
-            <SelectTrigger id="opponent-trigger" className="w-full">
-              <SelectValue placeholder="Who did you play?" />
-            </SelectTrigger>
-            {/* Same reason as above — this list is as long as the company. */}
-            <SelectContent
-              alignItemWithTrigger={false}
-              align="start"
-              className="max-h-64"
-            >
-              <SelectGroup>
-                {opponents.map((player) => (
-                  <SelectItem key={player.id} value={player.id}>
-                    {player.display_name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+            <ComboboxInput
+              id="opponent"
+              placeholder="Who did you play?"
+              disabled={opponents.length === 0}
+              showClear
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No player by that name.</ComboboxEmpty>
+              <ComboboxList>
+                {(item: OpponentItem) => (
+                  <ComboboxItem key={item.value} value={item}>
+                    {item.label}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
           {opponents.length === 0 && (
             <FieldDescription>
               No one else has signed up yet — you need a second player.
