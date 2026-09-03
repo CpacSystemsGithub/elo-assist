@@ -96,7 +96,10 @@ refreshes. It refreshes every 30 seconds on its own.
 
 ## Teams notifications
 
-Optional. Leave `TEAMS_WEBHOOK_URL` unset and the ladder simply posts nothing.
+Optional. Leave the webhook variables unset and the ladder simply posts
+nothing. Each sport posts to its own channel: `TEAMS_WEBHOOK_URL_PINGPONG` for
+table tennis, `TEAMS_WEBHOOK_URL_FUSSBALL` for foosball, with
+`TEAMS_WEBHOOK_URL` as a fallback for either.
 
 ### What gets posted
 
@@ -104,13 +107,14 @@ Optional. Leave `TEAMS_WEBHOOK_URL` unset and the ladder simply posts nothing.
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Every reported result            | Who beat whom, the score, both new ratings and the swing. Flagged `upset!` when the lower-rated player won.                                                                |
 | A win streak reaches a milestone | At **3**, **5**, **15**, then every further 15 (30, 45, 60…). Streaks count across a sport's variants but not between sports.                                              |
-| Monday morning                   | Per sport: **king of the hill**, **biggest climber** (largest net rating gain over the week) and **biggest blunder** (worst single-match rating drop, with the scoreline). |
+| Monday morning                   | Per sport: **king of the hill**, **biggest climber** (largest net rating gain over the week) and **biggest blunder** (worst single-match rating drop, with the scoreline). Each sport's round-up goes to its own channel. |
 
 ### Setting it up
 
-1. **Create the webhook.** In the Teams channel: **⋯ → Workflows → "Post to a
-   channel when a webhook request is received"**. Copy the generated URL into
-   `TEAMS_WEBHOOK_URL` in `.env.local`.
+1. **Create the webhook.** In each Teams channel: **⋯ → Workflows → "Post to a
+   channel when a webhook request is received"**. Copy the generated URLs into
+   `TEAMS_WEBHOOK_URL_PINGPONG` and `TEAMS_WEBHOOK_URL_FUSSBALL` in
+   `.env.local`.
 
    This is the Workflows/Power Automate trigger, not the retired Office 365
    connector. The app sends an Adaptive Card in the envelope Workflows expects.

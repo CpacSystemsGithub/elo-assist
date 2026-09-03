@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
   if (!isTeamsConfigured()) {
     return NextResponse.json(
-      { error: "TEAMS_WEBHOOK_URL is not configured" },
+      { error: "No Teams webhook is configured" },
       { status: 500 }
     )
   }
@@ -70,7 +70,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const delivered = await postToTeams(weeklyDigestCard(rows))
+  // Each sport gets its own round-up in its own channel.
+  const results = await Promise.all(
+    rows.map((row) => postToTeams(weeklyDigestCard([row]), row.sport_slug))
+  )
+  const delivered = results.length > 0 && results.every(Boolean)
 
   return NextResponse.json(
     { delivered, sports: rows.length },

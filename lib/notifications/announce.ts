@@ -26,7 +26,7 @@ export async function announceMatch(match: Match): Promise<void> {
         .in("id", [match.winner_id, match.loser_id]),
       supabase
         .from("game_types")
-        .select("name, sport_id, sports(id, name)")
+        .select("name, sport_id, sports(id, slug, name)")
         .eq("id", match.game_type_id)
         .single(),
     ])
@@ -39,7 +39,7 @@ export async function announceMatch(match: Match): Promise<void> {
     const sportRelation = (gameType as { sports?: unknown } | null)?.sports
     const sport = (
       Array.isArray(sportRelation) ? sportRelation[0] : sportRelation
-    ) as { id: string; name: string } | undefined
+    ) as { id: string; slug: string; name: string } | undefined
 
     const winnerName = nameOf(match.winner_id)
 
@@ -63,7 +63,8 @@ export async function announceMatch(match: Match): Promise<void> {
         sportName: sport?.name ?? "",
         variantName: (gameType as { name?: string } | null)?.name ?? "",
         wasUpset: match.winner_rating_before < match.loser_rating_before,
-      })
+      }),
+      sport?.slug
     )
 
     if (!sport?.id) return
@@ -85,7 +86,7 @@ export async function announceMatch(match: Match): Promise<void> {
     })
     if (claimed !== true) return
 
-    await postToTeams(streakCard(winnerName, milestone, sport.name))
+    await postToTeams(streakCard(winnerName, milestone, sport.name), sport.slug)
   } catch (error) {
     console.error("Could not announce match to Teams:", error)
   }
