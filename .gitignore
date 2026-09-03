@@ -8,29 +8,57 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
-
 # next.js
 /.next/
 /out/
+next-env.d.ts
 
 # production
 /build
 
-# misc
-.DS_Store
-*.pem
+# caches
+/coverage
+.turbo/
+.eslintcache
+*.tsbuildinfo
 
-# debug
+# env files
+# .env.local holds the Supabase keys and must never be pushed. The example
+# file is the template colleagues copy, so it is deliberately un-ignored.
+.env
+.env.*
+!.env.local.example
+
+# supabase
+# The CLI's local scratch state. supabase/migrations/ IS tracked — it is the
+# schema, and the app is not reproducible without it.
+supabase/.branches/
+supabase/.temp/
+supabase/.env
+
+# deployment
+.vercel
+
+# logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# editors
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# agent tooling
+.claude/settings.local.json
+
+# os
+.DS_Store
+Thumbs.db
+
+# certificates
+*.pem
